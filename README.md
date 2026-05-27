@@ -10,18 +10,22 @@ Os subconjuntos utilizados neste projeto são o **UFPR04** e **UFPR05**, captura
 
 | Informação | Detalhe |
 |---|---|
-| 📷 Total de imagens utilizadas (UFPR04 + UFPR05) | A atualizar |
+| 📷 Total de imagens utilizadas (UFPR04 + UFPR05) | 7.416 imagens |
+| 💾 Tamanho total | ~1,95 GB |
 | 🌤️ Condições climáticas | Ensolarado, Nublado, Chuvoso |
 | 🅿️ Vagas monitoradas | 45 vagas |
 | 📐 Resolução | 1280 × 720 pixels |
 | 📁 Formato | JPEG |
 
-## 📁 Arquivos do Projeto
+## 📊 Resultado do Processamento Serial
 
-| Arquivo | Descrição |
+| | |
 |---|---|
-| `serial.py` | Processa todas as imagens sequencialmente, uma por uma |
-| `paralelo.py` | Processa as imagens em paralelo usando 2, 4, 8 e 12 processos |
+| 📷 Total de imagens processadas | 7.416 |
+| 🟢 Vagas livres identificadas | 1.319 |
+| 🔴 Vagas ocupadas identificadas | 6.097 |
+| ❌ Erros | 0 |
+| ⏱️ Tempo total | 141,58 s |
 
 ## 🔍 Como os Scripts Funcionam
 
@@ -45,7 +49,7 @@ Isso significa que, independentemente de como as subpastas estão organizadas (p
 
 Processa as imagens uma por uma, em sequência. Para cada imagem:
 
-1. Lê o arquivo com `cv2.imread()`
+1. Lê o arquivo com `cv2.imdecode()`
 2. Converte para escala de cinza
 3. Aplica filtro Gaussiano para suavização
 4. Detecta bordas com o algoritmo de Canny
@@ -54,23 +58,6 @@ Processa as imagens uma por uma, em sequência. Para cada imagem:
 7. Combina os dois valores em um score → classifica como livre ou ocupada
 
 Ao final, salva o tempo total em `tempo_serial.txt` e os resultados em `resultados_serial.csv`.
-
-### paralelo.py — Processamento Paralelo
-
-Usa a mesma lógica de classificação do `serial.py`, mas distribui as imagens entre múltiplos processos usando `multiprocessing.Pool`. O script testa automaticamente 4 configurações:
-
-| Processos | Imagens por processo |
-|---|---|
-| 2 | ~1.708 |
-| 4 | ~854 |
-| 8 | ~427 |
-| 12 | ~285 |
-
-Cada processo trabalha de forma independente, sem precisar se comunicar com os outros durante o processamento. No final, os resultados são reunidos pelo processo principal.
-
-Os tempos de cada configuração são salvos em `tempos_paralelos.csv`.
-
-> ⚠️ **Windows:** O bloco `if __name__ == "__main__":` é obrigatório pois o Windows usa o método `spawn` para criar processos, diferente do Linux que usa `fork`.
 
 ## ⚙️ Como Executar
 
@@ -82,7 +69,7 @@ pip install opencv-python numpy matplotlib
 
 ### 2. Configurar o caminho das imagens
 
-Abra `serial.py` e `paralelo.py` e ajuste a variável no topo do arquivo:
+Abra `serial.py` e ajuste a variável no topo do arquivo:
 
 ```python
 DATASET_DIR = r"C:\caminho\para\sua\pasta\data"
@@ -92,7 +79,6 @@ DATASET_DIR = r"C:\caminho\para\sua\pasta\data"
 
 ```bash
 python serial.py
-python paralelo.py
 ```
 
 ## ⬇️ Como baixar as imagens
