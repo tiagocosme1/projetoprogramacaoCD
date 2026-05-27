@@ -12,7 +12,7 @@ import numpy as np
 # ─────────────────────────────────────────────
 #  CONFIGURAÇÃO — ajuste o caminho do dataset
 # ─────────────────────────────────────────────
-DATASET_DIR = r"C:\PKLot\data"  # pasta raiz com as imagens do PKLot (UFPR05)
+DATASET_DIR = r"C:\Users\João Victor\Downloads\UFPR05\data"  # pasta raiz com as imagens do PKLot (UFPR04 + UFPR05)
 RESULTS_CSV = "resultados_serial.csv"
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -23,7 +23,7 @@ def classificar_vaga(caminho_imagem: str) -> dict:
       - status  : 'livre' | 'ocupada'
       - score   : float  (0 = certamente livre, 1 = certamente ocupada)
     """
-    img = cv2.imread(caminho_imagem)
+    img = cv2.imdecode(np.fromfile(caminho_imagem, dtype=np.uint8), cv2.IMREAD_COLOR)
     if img is None:
         return {"caminho": caminho_imagem, "status": "erro", "score": -1}
 
