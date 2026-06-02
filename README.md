@@ -3,7 +3,7 @@
 **Disciplina:** PROGRAMAÇÃO CONCORRENTE E DISTRIBUÍDA  
 **Alunos:** João Victor Fernandes De Oliveira (RA: 083318) | Tiago Geraldo de Lima Cosme (RA: 083095)  
 **Turma:** ADS e SI  
-**Professor:** Rafael Marconi  
+**Professor:** Rafael Marconi Ramos 
 **Data:** 02/06/2026  
 
 ---
