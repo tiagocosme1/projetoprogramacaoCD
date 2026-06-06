@@ -3,7 +3,7 @@
 **Disciplina:** PROGRAMAÇÃO CONCORRENTE E DISTRIBUÍDA  
 **Alunos:** João Victor Fernandes De Oliveira (RA: 083318) | Tiago Geraldo de Lima Cosme (RA: 083095)  
 **Turma:** ADS e SI  
-**Professor:** Rafael Marconi Ramos 
+**Professor:** Rafael Marconi Ramos  
 **Data:** 02/06/2026  
 
 ---
@@ -12,10 +12,10 @@
 
 O programa resolve o problema de classificação automática de vagas de estacionamento a partir de imagens capturadas por câmeras de vigilância. O sistema percorre recursivamente uma massa de imagens do dataset **PKLot (UFPR04 + UFPR05)** para classificar cada vaga como **livre** ou **ocupada** utilizando técnicas de visão computacional com OpenCV.
 
-* **Algoritmo:** Para cada imagem, o sistema aplica conversão para escala de cinza, filtro Gaussiano, detecção de bordas (Canny) e calcula um score combinado de densidade de bordas e desvio padrão — vagas ocupadas possuem mais bordas e textura (contorno do veículo). O modelo paralelo utiliza **`multiprocessing.Pool`** para distribuir o processamento entre múltiplos processos.
+* **Algoritmo:** Para cada imagem, o sistema aplica as seguintes etapas de processamento: (1) conversão para escala de cinza, (2) filtro Gaussiano para suavização, (3) equalização de histograma para melhora de contraste, (4) detecção de bordas com algoritmo de Canny, (5) filtro Laplaciano para detecção de bordas de alta frequência, (6) Transformada de Hough para detecção de linhas, e (7) cálculo de score combinado de densidade de bordas e desvio padrão. O modelo paralelo utiliza **`multiprocessing.Pool`** para distribuir o processamento entre múltiplos processos.
 * **Tamanho da Entrada:** 7.416 imagens JPEG (UFPR04 + UFPR05), totalizando ~1,95 GB.
 * **Objetivo:** O objetivo da paralelização é reduzir o tempo total de resposta (latency) ao distribuir a carga de processamento de imagens entre os múltiplos núcleos da CPU, superando o gargalo da execução sequencial.
-* **Complexidade:** Aproximadamente $O(n \times p)$, onde $n$ é o número de imagens e $p$ é o custo de processamento por imagem (filtros + cálculo de bordas).
+* **Complexidade:** Aproximadamente $O(n \times p)$, onde $n$ é o número de imagens e $p$ é o custo de processamento por imagem (múltiplos filtros e transformadas).
 
 ---
 
@@ -41,7 +41,7 @@ Os experimentos foram conduzidos medindo o tempo total de execução ("Wall Time
 * **Execuções:** Foi realizada uma medição para cada configuração de processos.
 * **Entrada:** Massa de teste fixa (pastas UFPR04 + UFPR05) com 7.416 imagens JPEG.
 * **Configurações:** Testes realizados com 1 (serial), 2, 4, 8 e 12 processos.
-* **Condições:** Execução em máquina local com carga de sistema reduzida (navegador, Discord e demais aplicativos fechados). É importante destacar que os resultados podem variar conforme a quantidade de memória RAM disponível no momento da execução — em testes realizados com muitos programas abertos, o tempo serial chegou a **140s**, enquanto com o sistema mais limpo o mesmo processamento levou **97s**, uma diferença de aproximadamente 30%. Isso demonstra que a carga do sistema operacional impacta diretamente o desempenho, mesmo no processamento serial.
+* **Condições:** Execução em máquina local com carga de sistema reduzida (navegador, Discord e demais aplicativos fechados). É importante destacar que os resultados podem variar conforme a quantidade de memória RAM disponível no momento da execução — em testes realizados com muitos programas abertos, o tempo serial chegou a **260s**, enquanto com o sistema mais limpo o mesmo processamento levou **259s**. Isso demonstra que a carga do sistema operacional pode impactar diretamente o desempenho, mesmo no processamento serial, sendo recomendado sempre executar os testes com o menor número de programas abertos possível.
 
 ---
 
@@ -49,11 +49,22 @@ Os experimentos foram conduzidos medindo o tempo total de execução ("Wall Time
 
 | Nº Threads/Processos | Tempo de Execução (s) |
 | -------------------- | --------------------- |
-| 1 (Serial)           | 97.8697               |
-| 2                    | 60.1549               |
-| 4                    | 43.8804               |
-| 8                    | 41.5875               |
-| 12                   | 42.3247               |
+| 1 (Serial)           | 259.8428              |
+| 2                    | 154.9140              |
+| 4                    | 105.3845              |
+| 8                    | 95.7553               |
+| 12                   | 89.6858               |
+
+---
+
+# 5. Resultados da Classificação
+
+| Informação | Resultado |
+| ---------- | --------- |
+| Total de imagens processadas | 7.416 |
+| Vagas livres identificadas | 1.319 |
+| Vagas ocupadas identificadas | 6.097 |
+| Erros | 0 |
 
 ---
 
@@ -61,11 +72,11 @@ Os experimentos foram conduzidos medindo o tempo total de execução ("Wall Time
 
 | Threads/Processos | Tempo (s) | Speedup | Eficiência |
 | ----------------- | --------- | ------- | ---------- |
-| 1                 | 97.8697   | 1.0000  | 1.0000     |
-| 2                 | 60.1549   | 1.6271  | 0.8135     |
-| 4                 | 43.8804   | 2.2304  | 0.5576     |
-| 8                 | 41.5875   | 2.3533  | 0.2942     |
-| 12                | 42.3247   | 2.3124  | 0.1927     |
+| 1                 | 259.8428  | 1.0000  | 1.0000     |
+| 2                 | 154.9140  | 1.6773  | 0.8387     |
+| 4                 | 105.3845  | 2.4657  | 0.6164     |
+| 8                 | 95.7553   | 2.7136  | 0.3392     |
+| 12                | 89.6858   | 2.8973  | 0.2414     |
 
 ---
 
@@ -84,49 +95,52 @@ Os experimentos foram conduzidos medindo o tempo total de execução ("Wall Time
 
 ## O speedup obtido foi próximo do ideal?
 
-O speedup obtido ficou bem abaixo do ideal linear em todas as configurações. Com **2 processos** o speedup foi de **1.63** (ideal seria 2.0), com **4 processos** foi de **2.23** (ideal seria 4.0) e com **8 processos** atingiu o máximo de **2.35** (ideal seria 8.0). Isso demonstra que o programa não consegue escalar linearmente devido a múltiplos fatores de limitação de hardware e características da carga de trabalho.
+O speedup obtido ficou abaixo do ideal linear em todas as configurações. Com **2 processos** o speedup foi de **1.68** (ideal seria 2.0), com **4 processos** foi de **2.47** (ideal seria 4.0), com **8 processos** foi de **2.71** (ideal seria 8.0) e com **12 processos** atingiu **2.90** (ideal seria 12.0). Embora o speedup tenha crescido a cada configuração, a distância em relação ao ideal aumenta progressivamente, demonstrando que o programa não consegue escalar linearmente devido a múltiplos fatores de limitação de hardware e características da carga de trabalho.
 
 ## A aplicação apresentou escalabilidade?
 
-Sim, mas com **rendimento fortemente decrescente**. O tempo caiu de 97s (serial) para 41s (8 processos), porém com 12 processos o tempo voltou a **subir para 42s**, indicando que a partir de certo ponto adicionar mais processos passa a prejudicar o desempenho. Essa queda com 12 processos é um sinal claro de que os recursos da máquina foram saturados.
+Sim, e diferentemente de resultados anteriores com um algoritmo mais simples, nesta versão o tempo **continuou caindo** mesmo com 12 processos — de 259s (serial) para 154s (2 processos), 105s (4 processos), 95s (8 processos) e 89s (12 processos). Isso ocorre porque o algoritmo mais robusto (com Laplaciano, Hough e múltiplas etapas) tornou o processamento mais **CPU-bound**, fazendo com que cada processo adicional contribua com mais trabalho útil antes de saturar os recursos da máquina.
 
-## Por que 4 e 8 processos tiveram tempos tão próximos?
+## Por que o speedup não cresce proporcionalmente ao número de processos?
 
-O tempo com 4 processos foi de **43.88s** e com 8 processos foi de **41.58s** — uma diferença de apenas ~2 segundos. Isso acontece porque o gargalo do programa não é a CPU, mas sim a **leitura das imagens do disco (I/O Bound)**. Com 4 processos o disco já estava sendo utilizado próximo do seu limite de leitura. Adicionar mais processos (8) não acelera significativamente porque todos ficam concorrendo pelo mesmo recurso: o disco rígido. É como ter 4 ou 8 atendentes em uma loja com apenas 1 caixa — a fila no caixa continua sendo o gargalo independente de quantos atendentes existam.
+O speedup não é linear por uma combinação de três fatores:
 
-## Por que 12 processos foi mais lento que 8?
+**1. Gargalo de I/O de disco:** Cada processo precisa ler suas imagens do disco rígido. Com múltiplos processos acessando o disco simultaneamente, ocorre contenção — todos competem pelo mesmo recurso físico. Isso limita o ganho real mesmo quando a CPU tem capacidade disponível.
 
-Dois fatores combinados explicam esse comportamento:
+**2. Limitação de núcleos físicos:** O processador i5-11400H possui apenas **6 núcleos físicos** (12 threads via Hyper-Threading). Com 8 ou 12 processos, o sistema operacional precisa escalonar mais processos do que núcleos físicos disponíveis, gerando **context switching** — troca de contexto que consome tempo de CPU sem realizar trabalho útil na aplicação.
 
-**1. Limitação de núcleos físicos:** O processador i5-11400H possui apenas **6 núcleos físicos**. Com 12 processos, cada núcleo precisa alternar entre 2 processos simultaneamente (context switching), gerando overhead de troca de contexto que consome tempo de CPU sem realizar trabalho útil.
+**3. Overhead de criação e gerenciamento de processos:** O `multiprocessing.Pool` precisa inicializar cada processo worker com o interpretador Python e todas as bibliotecas (OpenCV, NumPy). Esse custo de inicialização é fixo e representa um overhead que não escala com o número de imagens processadas.
 
-**2. Overhead de gerenciamento:** O sistema operacional precisa gerenciar 12 processos, alocar memória para cada um, fazer o escalonamento entre os núcleos e controlar a comunicação entre eles. Com 12 processos em um hardware limitado, esse overhead supera o ganho de paralelismo.
+## Por que a eficiência cai conforme aumentam os processos?
 
-## Em qual ponto a eficiência começou a cair?
+A eficiência mede o quanto cada processo está sendo aproveitado em relação ao seu potencial teórico. Com **2 processos** a eficiência foi de **0.84** — cada processo aproveitou 84% de sua capacidade teórica. Com **4 processos** caiu para **0.62**, com **8** para **0.34** e com **12** chegou a apenas **0.24**. Isso significa que com 12 processos, 76% do potencial computacional está sendo desperdiçado em overhead, espera por I/O e disputas por recursos. A queda é esperada e está diretamente relacionada à natureza I/O Bound da leitura das imagens — quanto mais processos tentam ler o disco ao mesmo tempo, maior a fila de espera e menor o aproveitamento de cada processo.
 
-A eficiência caiu desde o início — já com 2 processos foi de **0.81**, com 4 caiu para **0.56**, com 8 chegou a **0.29** e com 12 atingiu apenas **0.19**. Isso significa que com 12 processos, cada processo está aproveitando apenas 19% da sua capacidade teórica — os outros 81% são perdidos em overhead, espera por I/O e disputas entre processos.
+## Por que o tempo com 8 e 12 processos ainda é próximo?
+
+O tempo com 8 processos foi de **95.75s** e com 12 processos foi de **89.68s** — uma diferença de apenas ~6 segundos para 4 processos extras. Isso acontece porque o disco rígido já estava sendo utilizado próximo do seu limite com 8 processos. Adicionar mais 4 processos (totalizando 12) traz um ganho marginal pequeno porque o gargalo principal continua sendo o I/O — não a CPU. É como adicionar mais funcionários a uma linha de produção quando a esteira já está no limite máximo de velocidade: mais funcionários não fazem a esteira andar mais rápido.
 
 ## Impacto da carga do sistema nos resultados
 
-Um fator importante observado durante os testes foi a influência da carga do sistema operacional nos resultados. Em uma execução realizada com o navegador (14 abas abertas), Discord e outros programas ativos, o tempo serial foi de **140s**. Ao fechar esses programas e liberar memória RAM, o mesmo processamento serial levou apenas **97s** — uma melhora de **30% simplesmente por liberar recursos do sistema**. Isso evidencia que em máquinas com 8 GB de RAM, a concorrência por memória entre o programa e outros processos do sistema operacional é um fator determinante no desempenho, podendo variar significativamente entre execuções.
+Os resultados são sensíveis à carga do sistema operacional no momento da execução. Em testes realizados com o navegador com 14 abas abertas, Discord e outros programas ativos, os tempos foram significativamente piores. Ao fechar esses programas e liberar memória RAM, os resultados melhoraram consideravelmente. Em máquinas com 8 GB de RAM, a concorrência por memória entre o programa e outros processos do sistema operacional é um fator determinante no desempenho, podendo variar significativamente entre execuções.
 
 ## Houve overhead de paralelização?
 
 Sim. Os principais overheads observados foram:
-- **Disputa por I/O de disco:** múltiplos processos tentando ler imagens simultaneamente
-- **Context switching:** com mais processos que núcleos físicos, a CPU perde tempo trocando entre processos
-- **Criação e inicialização de processos:** o `multiprocessing.Pool` precisa inicializar cada processo worker com suas bibliotecas (OpenCV, NumPy), o que tem custo inicial
+- **Disputa por I/O de disco:** múltiplos processos tentando ler imagens simultaneamente geram fila de espera no disco
+- **Context switching:** com mais processos que núcleos físicos, a CPU alterna entre processos gastando tempo sem realizar trabalho útil
+- **Criação e inicialização de processos:** o `multiprocessing.Pool` precisa inicializar cada processo worker com o interpretador Python e bibliotecas (OpenCV, NumPy)
+- **Serialização de dados (pickle):** o pool precisa serializar os caminhos das imagens para enviar aos processos filhos
 
 ---
 
 # 11. Conclusão
 
-* **Desempenho:** O paralelismo foi eficaz, reduzindo o tempo de processamento de **~97s para ~41s** com 8 processos — uma redução de aproximadamente **57%**. Ainda assim, o ganho ficou abaixo do ideal teórico devido às características I/O Bound da aplicação e às limitações do hardware disponível.
+* **Desempenho:** O paralelismo foi eficaz, reduzindo o tempo de processamento de **~259s para ~89s** com 12 processos — uma redução de aproximadamente **65%**. Com o algoritmo mais robusto (múltiplas etapas de visão computacional), o ganho de paralelismo foi mais expressivo do que com o algoritmo simples, pois a carga de CPU por imagem aumentou, tornando o processamento mais CPU-bound.
 
-* **Melhor Configuração:** Em termos de tempo bruto, **8 processos** foi o melhor resultado (41.58s). Em termos de custo-benefício (eficiência), a configuração com **2 processos** foi a mais equilibrada, com eficiência de 0.81 — aproveitando bem os recursos sem gerar overhead excessivo.
+* **Melhor Configuração:** Em termos de tempo bruto, **12 processos** foi o melhor resultado (89.68s). Em termos de custo-benefício (eficiência), a configuração com **2 processos** foi a mais equilibrada, com eficiência de 0.84 — aproveitando bem os recursos sem gerar overhead excessivo.
 
-* **Escalabilidade:** O programa escala até 8 processos, sendo limitado principalmente por dois fatores: (1) gargalo de leitura de imagens do disco (I/O Bound) e (2) apenas 6 núcleos físicos disponíveis. A partir de 8 processos o overhead de gerenciamento supera o ganho de paralelismo.
+* **Escalabilidade:** O programa escala progressivamente até 12 processos, com ganhos decrescentes. A limitação principal é o gargalo de leitura de imagens do disco (I/O Bound), combinado com os apenas 6 núcleos físicos disponíveis. O fato de 12 processos ainda ser melhor que 8 indica que o algoritmo mais pesado tornou o processamento suficientemente CPU-bound para compensar parcialmente o overhead extra.
 
 * **Variação por carga do sistema:** Os resultados são sensíveis à quantidade de memória e recursos disponíveis no momento da execução. Em máquinas com 8 GB de RAM, recomenda-se fechar programas desnecessários antes de executar o processamento paralelo para obter resultados mais consistentes e representativos.
 
-* **Melhorias:** Uma implementação utilizando leitura assíncrona de imagens (`asyncio`) ou pré-carregamento em lotes (batching) poderia reduzir a contenção de I/O. A longo prazo, processar as imagens em GPU com OpenCV-CUDA traria ganhos muito superiores ao paralelismo por CPU.
+* **Melhorias:** Uma implementação utilizando leitura assíncrona de imagens (`asyncio`) ou um SSD NVMe mais rápido reduziria significativamente o gargalo de I/O. A longo prazo, processar as imagens em GPU com OpenCV-CUDA traria ganhos muito superiores ao paralelismo por CPU, pois as operações de visão computacional são altamente paralelizáveis em GPU.
