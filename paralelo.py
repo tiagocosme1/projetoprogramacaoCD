@@ -1,6 +1,7 @@
 """
 paralelo.py — Processamento PARALELO das imagens do PKLot
 Usa multiprocessing.Pool (mais estável no Windows)
+Mesmo algoritmo do serial.py com múltiplas passagens (CPU-bound)
 Testa com 2, 4, 8 e 12 processos
 """
 
@@ -19,21 +20,52 @@ RESULTADOS_DIR = "resultados_paralelos"
 TEMPOS_CSV = "tempos_paralelos.csv"
 CONFIGURACOES = [2, 4, 8, 12]
 
+# Número de passagens de processamento por imagem (aumenta carga CPU)
+N_PASSAGENS = 1
+
 # ──────────────────────────────────────────────────────────────────────────────
-#  CLASSIFICAÇÃO (mesma lógica do serial.py)
+#  CLASSIFICAÇÃO — mesmo algoritmo do serial.py
 # ──────────────────────────────────────────────────────────────────────────────
 def classificar_vaga(caminho_imagem: str) -> dict:
+    """
+    Classifica uma vaga como livre ou ocupada.
+    Executa N_PASSAGENS de processamento para aumentar a carga de CPU,
+    usando o resultado da última passagem para a classificação final.
+    """
     img = cv2.imdecode(np.fromfile(caminho_imagem, dtype=np.uint8), cv2.IMREAD_COLOR)
     if img is None:
         return {"caminho": caminho_imagem, "status": "erro", "score": -1}
 
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    blur = cv2.GaussianBlur(gray, (5, 5), 0)
-    edges = cv2.Canny(blur, 50, 150)
-    edge_density = np.sum(edges > 0) / edges.size
-    std_dev = np.std(gray) / 255.0
+    edge_density = 0
+    std_dev = 0
+
+    for _ in range(N_PASSAGENS):
+        # Pré-processamento
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        blur = cv2.GaussianBlur(gray, (5, 5), 0)
+
+        # Detecção de bordas com Canny
+        edges = cv2.Canny(blur, 50, 150)
+        edge_density = np.sum(edges > 0) / edges.size
+
+        # Equalização de histograma
+        equalized = cv2.equalizeHist(gray)
+
+        # Filtro Laplaciano
+        laplacian = cv2.Laplacian(equalized, cv2.CV_64F)
+        _ = laplacian.var()
+
+        # Transformada de Hough
+        cv2.HoughLinesP(edges, 1, np.pi / 180,
+                        threshold=30, minLineLength=20, maxLineGap=5)
+
+        # Desvio padrão de textura
+        std_dev = np.std(gray) / 255.0
+
+    # Score baseado nos mesmos critérios originais (threshold calibrado)
     score = 0.6 * edge_density * 10 + 0.4 * std_dev * 3
     score = min(score, 1.0)
+
     status = "ocupada" if score > 0.35 else "livre"
     return {"caminho": caminho_imagem, "status": status, "score": round(score, 4)}
 
@@ -147,3 +179,4 @@ if __name__ == "__main__":
     print(f"{'='*55}")
     print(f"  Tabela de tempos salva em: {TEMPOS_CSV}")
     print(f"{'='*55}\n")
+
