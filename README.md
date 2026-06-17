@@ -24,7 +24,7 @@ O programa resolve o problema de classificação automática de vagas de estacio
 | Item                        | Descrição |
 | --------------------------- | --------- |
 | Processador                 | 11th Gen Intel(R) Core(TM) i5-11400H @ 2.70GHz |
-| Número de núcleos           | 6 Núcleo(s) / 12 Threads |
+| Número de núcleos físicos   | 6 Núcleos (12 Threads via Hyper-Threading) |
 | Memória RAM                 | 8,00 GB |
 | Sistema Operacional         | Microsoft Windows 11 Home Single Language |
 | Armazenamento               | SSD NVMe WD PC SN530 (1 TB) |
@@ -42,7 +42,9 @@ Os experimentos foram conduzidos medindo o tempo total de execução ("Wall Time
 * **Execuções:** Foi realizada uma medição para cada configuração de processos.
 * **Entrada:** Massa de teste fixa (pastas UFPR04 + UFPR05) com 7.416 imagens JPEG.
 * **Configurações:** Testes realizados com 1 (serial), 2, 4, 8 e 12 processos.
-* **Condições:** Execução em máquina local com carga de sistema reduzida (navegador, Discord e demais aplicativos fechados). É importante destacar que os resultados podem variar conforme a quantidade de memória RAM disponível no momento da execução — em testes realizados com muitos programas abertos, os tempos foram significativamente piores. Isso demonstra que a carga do sistema operacional impacta diretamente o desempenho, sendo recomendado sempre executar os testes com o menor número de programas abertos possível.
+* **Condições:** Execução em máquina local com carga de sistema reduzida (navegador, Discord e demais aplicativos fechados).
+* **Monitoramento adicional:** Além do tempo de execução, foi monitorado o uso de **CPU** e **Memória RAM** durante cada configuração, utilizando o Gerenciador de Tarefas do Windows, para identificar com precisão qual recurso era o gargalo real da aplicação (seção 10 detalha essa investigação).
+* **Variação entre execuções:** Foi observado que repetir os mesmos testes em momentos diferentes gera tempos levemente diferentes (variações de 5 a 15%), devido a processos de fundo do sistema operacional e ajuste dinâmico de frequência da CPU. Por esse motivo, os valores apresentados na tabela de resultados representam uma execução típica, sendo a tendência geral (queda de tempo, queda de eficiência) o dado mais importante a ser analisado, e não o valor absoluto de cada execução isolada.
 
 ---
 
@@ -94,58 +96,73 @@ Os experimentos foram conduzidos medindo o tempo total de execução ("Wall Time
 
 # 10. Análise dos Resultados
 
-## O que é I/O Bound e por que afeta o desempenho?
+## 10.1 O que é I/O Bound e o que é CPU Bound?
 
-Antes de analisar os resultados, é importante entender o conceito de **I/O Bound**. Uma aplicação é considerada I/O Bound quando o seu maior gargalo não é o processador (CPU), mas sim operações de entrada e saída — no caso deste projeto, a **leitura das imagens do disco**. Enquanto um processo lê sua imagem, os outros ficam com a CPU **parada esperando** — e CPU parada é eficiência desperdiçada. Isso explica por que adicionar mais processos nem sempre resulta em ganho proporcional de desempenho. Vale destacar que mesmo com um **SSD NVMe** (WD PC SN530), que é um dos tipos de armazenamento mais rápidos disponíveis, o gargalo de I/O ainda existe quando múltiplos processos competem simultaneamente pelo mesmo recurso. O principal limitador neste projeto, no entanto, é a quantidade de **núcleos físicos da CPU**, conforme explicado nas seções seguintes.
+Antes de analisar os resultados, é importante esclarecer dois conceitos. Uma aplicação é **I/O Bound** quando seu maior gargalo é a entrada/saída de dados (leitura de disco, rede), e os processos ficam frequentemente com a CPU **ociosa esperando** esses dados chegarem. Já uma aplicação é **CPU Bound** quando o gargalo é a capacidade de processamento — a CPU está constantemente ocupada calculando, e o tempo de espera por disco é insignificante.
 
-## O speedup obtido foi próximo do ideal?
+Inicialmente, suspeitou-se que o projeto fosse I/O Bound (gargalo no disco) ou limitado pela memória RAM. Para confirmar a causa real, foi realizada uma investigação prática descrita a seguir.
 
-O speedup obtido ficou abaixo do ideal linear em todas as configurações. Com **2 processos** o speedup foi de **1.68** (ideal seria 2.0), com **4 processos** foi de **2.47** (ideal seria 4.0), com **8 processos** foi de **2.71** (ideal seria 8.0) e com **12 processos** atingiu **2.90** (ideal seria 12.0). Embora o speedup tenha crescido a cada configuração, a distância em relação ao ideal aumenta progressivamente, demonstrando que o programa não consegue escalar linearmente devido aos fatores descritos abaixo.
+## 10.2 Investigação prática: CPU, Memória e a hipótese da RAM
 
-## A aplicação apresentou escalabilidade?
+Durante a execução do `paralelo.py`, foi monitorado o uso de **CPU** e **Memória RAM** pelo Gerenciador de Tarefas do Windows, para cada configuração de processos:
 
-Sim. O tempo continuou caindo a cada configuração — de 259s (serial) para 154s (2 processos), 105s (4 processos), 95s (8 processos) e 89s (12 processos). Isso ocorre porque o algoritmo robusto utilizado (com Laplaciano, Hough e múltiplas etapas) tornou o processamento mais **CPU-bound**, fazendo com que cada processo adicional contribua com trabalho útil antes de saturar os recursos da máquina.
+| Processos | Uso de CPU | Uso de Memória RAM |
+| --------- | ---------- | ------------------- |
+| 2         | 40% – 66%  | 82% – 87% (6,4–6,8 / 7,8 GB) |
+| 4         | 66%        | 87% (6,8 / 7,8 GB) |
+| 8         | 92%        | 87% (6,8 / 7,8 GB) |
+| 12        | 95% – 97%  | 87% – 90% (6,8–7,0 / 7,8 GB) |
 
-## Por que o speedup não cresce proporcionalmente ao número de processos?
+**Análise desses dados:** o uso de memória RAM permaneceu **praticamente constante** (entre 82% e 90%) em todas as configurações testadas, não importando se eram 2 ou 12 processos. Isso indica que a memória já estava naquele patamar antes mesmo da execução do script (consumida pelo próprio Windows e processos em segundo plano), e **não cresceu proporcionalmente ao número de processos paralelos**.
 
-O speedup não é linear por uma combinação de fatores:
+Já o uso de **CPU escalou claramente** com o número de processos: de 40-66% (2 e 4 processos) para 92-97% (8 e 12 processos). Isso evidencia que, a partir de 8 processos, a CPU está **praticamente saturada** — ou seja, o gargalo real do projeto é a **capacidade de processamento da CPU**, não a memória RAM.
 
-**1. Limitação de núcleos físicos:** O processador i5-11400H possui apenas **6 núcleos físicos** (12 threads via Hyper-Threading). Com 8 ou 12 processos, o sistema operacional precisa escalonar mais processos do que núcleos físicos disponíveis, gerando **context switching** — troca de contexto que consome tempo de CPU sem realizar trabalho útil na aplicação. Este é o principal fator limitante nos resultados obtidos.
+**Testando a hipótese de otimização de memória:** como o orientador sugeriu que o problema poderia ser consumo excessivo de RAM forçando o uso de memória virtual (swap), foi implementada uma versão otimizada do `paralelo.py` utilizando `pool.imap_unordered()` com `chunksize` reduzido e `maxtasksperchild` (para reiniciar processos periodicamente e evitar acúmulo de memória). Os resultados dessa versão otimizada foram comparados com a versão original:
 
-**2. Gargalo de I/O:** Mesmo com SSD NVMe, quando múltiplos processos acessam o disco simultaneamente ocorre contenção — todos competem pelo mesmo recurso. Isso limita o ganho real mesmo quando a CPU tem capacidade disponível.
+| Processos | Tempo (original) | Tempo (otimizado p/ RAM) | Diferença |
+| --------- | ----------------- | -------------------------- | --------- |
+| 2         | 158.64s            | 157.01s                     | -1.6s |
+| 4         | 105.86s            | 105.48s                     | -0.4s |
+| 8         | 94.95s             | 91.85s                      | -3.1s |
+| 12        | 91.89s             | 91.11s                      | -0.8s |
 
-**3. Overhead de criação e gerenciamento de processos:** O `multiprocessing.Pool` precisa inicializar cada processo worker com o interpretador Python e todas as bibliotecas (OpenCV, NumPy). Esse custo de inicialização é fixo e representa um overhead que não escala com o número de imagens processadas.
+A diferença foi mínima (menos de 3 segundos em todos os casos), o que **comprova que o problema não é causado por acúmulo de memória ou memory leak** — caso contrário, a otimização teria reduzido o tempo de forma muito mais expressiva, especialmente em 8 e 12 processos. Esse teste confirma que o gargalo real é a CPU, e não a memória RAM.
 
-## Por que a eficiência cai conforme aumentam os processos?
+## 10.3 O speedup obtido foi próximo do ideal?
 
-A eficiência mede o quanto cada processo está sendo aproveitado em relação ao seu potencial teórico. Com **2 processos** a eficiência foi de **0.84** — cada processo aproveitou 84% de sua capacidade teórica. Com **4 processos** caiu para **0.62**, com **8** para **0.34** e com **12** chegou a apenas **0.24**. Isso significa que com 12 processos, 76% do potencial computacional está sendo desperdiçado em overhead e context switching — consequência direta de executar mais processos do que núcleos físicos disponíveis.
+O speedup obtido ficou abaixo do ideal linear em todas as configurações. Com **2 processos** o speedup foi de **1.68** (ideal seria 2.0), com **4 processos** foi de **2.47** (ideal seria 4.0), com **8 processos** foi de **2.71** (ideal seria 8.0) e com **12 processos** atingiu **2.90** (ideal seria 12.0). A distância em relação ao ideal aumenta progressivamente conforme mais processos são adicionados.
 
-## Por que o tempo com 8 e 12 processos é próximo?
+## 10.4 Por que o tempo de execução com 8 e 12 processos é tão parecido?
 
-O tempo com 8 processos foi de **95.75s** e com 12 processos foi de **89.68s** — uma diferença de apenas ~6 segundos para 4 processos extras. Com 8 processos já ultrapassamos o limite de 6 núcleos físicos, e adicionar mais 4 processos (totalizando 12) gera ainda mais context switching. O ganho marginal existe mas é pequeno porque o sistema operacional está gastando cada vez mais tempo alternando entre processos em vez de processá-los. É como adicionar mais carros numa pista que já está congestionada — o trânsito melhora pouco e o caos aumenta.
+Esta é a observação central deste relatório, e a investigação da seção 10.2 explica exatamente o motivo: **o processador possui apenas 6 núcleos físicos**. Com 8 processos, já estamos pedindo 2 processos extras além da capacidade física de execução simultânea da CPU — e com 12 processos, o dobro. Quando isso acontece, o sistema operacional precisa fazer **context switching**: pausar um processo, salvar seu estado, carregar outro processo no mesmo núcleo, e repetir esse ciclo constantemente. Esse processo consome tempo de CPU **sem realizar nenhum trabalho útil de classificação de imagens** — é puro custo administrativo do sistema operacional.
 
-## Impacto da carga do sistema nos resultados
+Isso foi confirmado na prática: o uso de CPU subiu para 92% (8 processos) e 95-97% (12 processos) — ou seja, a CPU já está no seu limite máximo de capacidade a partir de 8 processos. Adicionar mais processos depois desse ponto não traz mais "poder de processamento" disponível — só mais fila de espera e mais trocas de contexto. É como tentar colocar mais carros numa autoestrada que já está no limite da sua capacidade: o fluxo não melhora, e o congestionamento (overhead) aumenta.
 
-Os resultados são sensíveis à carga do sistema operacional no momento da execução. Em testes realizados com o navegador com 14 abas abertas, Discord e outros programas ativos, os tempos foram significativamente piores. Ao fechar esses programas e liberar memória RAM, os resultados melhoraram consideravelmente. Em máquinas com 8 GB de RAM, a concorrência por memória entre o programa e outros processos do sistema operacional é um fator determinante no desempenho.
+## 10.5 Por que a eficiência cai tanto conforme aumentam os processos?
 
-## Houve overhead de paralelização?
+A eficiência mede o quanto cada processo está sendo aproveitado em relação ao seu potencial teórico (eficiência = speedup ÷ número de processos). Com **2 processos** a eficiência foi de **0.84** (84% aproveitado), com **4 processos** caiu para **0.62**, com **8** para **0.34** e com **12** chegou a apenas **0.24**.
 
-Sim. Os principais overheads observados foram:
-- **Context switching:** com mais processos que núcleos físicos, a CPU alterna entre processos gastando tempo sem realizar trabalho útil
-- **Contenção de I/O:** múltiplos processos acessando o disco simultaneamente, mesmo sendo SSD NVMe
-- **Criação e inicialização de processos:** o `multiprocessing.Pool` precisa inicializar cada processo worker com o interpretador Python e bibliotecas (OpenCV, NumPy)
-- **Serialização de dados (pickle):** o pool precisa serializar os caminhos das imagens para enviar aos processos filhos
+A queda é matematicamente esperada quando o número de processos ultrapassa o número de núcleos físicos: como demonstrado na seção 10.2, a partir de 8 processos a CPU já está saturada (92-97%), então o "trabalho extra" de cada processo adicional é, em boa parte, apenas overhead de gerenciamento — e não processamento real de imagens. Por isso a eficiência cai de forma acentuada: estamos dividindo o mesmo "bolo" de capacidade de CPU entre cada vez mais processos, e cada fatia rende cada vez menos.
+
+## 10.6 Houve overhead de paralelização?
+
+Sim. Com base na investigação prática realizada, os principais overheads identificados foram:
+
+- **Context switching (principal causa):** com 8 e 12 processos rodando em apenas 6 núcleos físicos, a CPU constantemente troca de contexto entre processos, gerando custo computacional sem trabalho útil. Confirmado pelo uso de CPU em 92-97% nessas configurações.
+- **Criação e inicialização de processos:** o `multiprocessing.Pool` precisa inicializar cada processo worker com o interpretador Python e bibliotecas (OpenCV, NumPy), processo que tem custo fixo independente do volume de trabalho.
+- **Variação do sistema operacional:** testes repetidos nas mesmas condições apresentaram variações de tempo entre 5% e 15%, devido a processos de fundo do Windows e ajuste dinâmico de frequência da CPU (Turbo Boost).
+- **Memória RAM:** descartada como causa principal após teste prático (seção 10.2) — o consumo de RAM permaneceu estável (82-90%) independente do número de processos, e uma versão otimizada para reduzir uso de memória não trouxe melhora significativa de tempo.
 
 ---
 
 # 11. Conclusão
 
-* **Desempenho:** O paralelismo foi eficaz, reduzindo o tempo de processamento de **~259s para ~89s** com 12 processos — uma redução de aproximadamente **65%**. Com o algoritmo mais robusto (múltiplas etapas de visão computacional), o ganho de paralelismo foi mais expressivo, pois a carga de CPU por imagem aumentou tornando o processamento mais CPU-bound.
+* **Desempenho:** O paralelismo foi eficaz, reduzindo o tempo de processamento de **~259s para ~89s** com 12 processos — uma redução de aproximadamente **65%**.
 
-* **Melhor Configuração:** Em termos de tempo bruto, **12 processos** foi o melhor resultado (89.68s). Em termos de custo-benefício (eficiência), a configuração com **2 processos** foi a mais equilibrada, com eficiência de 0.84 — aproveitando bem os recursos sem gerar overhead excessivo.
+* **Causa raiz da eficiência baixa (confirmada com evidência prática):** através do monitoramento de CPU e memória durante a execução, foi comprovado que o gargalo real do projeto é a **limitação de 6 núcleos físicos** do processador, e não a memória RAM como inicialmente suspeitado. O uso de CPU sobe para 92-97% a partir de 8 processos (acima do número de núcleos físicos), gerando context switching excessivo, enquanto o uso de memória permanece estável (82-90%) independente do número de processos. Uma tentativa de otimizar o uso de memória (`imap_unordered` + `maxtasksperchild`) resultou em ganhos inferiores a 3 segundos em todas as configurações, confirmando que a memória não era a causa do problema.
 
-* **Escalabilidade:** O programa escala progressivamente até 12 processos, com ganhos decrescentes. A limitação principal são os apenas **6 núcleos físicos** disponíveis — testar com 8 e 12 processos em uma máquina de 6 núcleos inevitavelmente gera context switching excessivo, limitando o speedup obtido.
+* **Melhor Configuração:** Em termos de tempo bruto, **12 processos** foi o melhor resultado (89.68s). Em termos de custo-benefício (eficiência), a configuração com **2 processos** foi a mais equilibrada, com eficiência de 0.84.
 
-* **Variação por carga do sistema:** Os resultados são sensíveis à quantidade de memória e recursos disponíveis no momento da execução. Em máquinas com 8 GB de RAM, recomenda-se fechar programas desnecessários antes de executar o processamento paralelo para obter resultados mais consistentes e representativos.
+* **Escalabilidade:** O programa escala progressivamente até 12 processos, mas com ganhos cada vez menores a partir de 8 processos — exatamente o ponto em que a quantidade de processos supera a quantidade de núcleos físicos (6) disponíveis na máquina.
 
-* **Melhorias:** A principal melhoria seria utilizar uma máquina com mais núcleos físicos (8 ou 12 núcleos), o que permitiria aproveitar melhor as configurações de 8 e 12 processos sem gerar context switching. Adicionalmente, processar as imagens em GPU com OpenCV-CUDA traria ganhos muito superiores ao paralelismo por CPU, pois as operações de visão computacional são altamente paralelizáveis em GPU.
+* **Melhorias possíveis:** A melhoria mais efetiva seria executar o programa em uma máquina com mais núcleos físicos (8 ou 12 núcleos reais), eliminando o context switching observado. Como alternativa, processar as imagens em GPU utilizando OpenCV-CUDA traria ganhos superiores ao paralelismo por CPU, já que operações de visão computacional (convoluções, filtros, transformadas) são altamente paralelizáveis em hardware gráfico, que possui milhares de núcleos simples otimizados para esse tipo de cálculo.
