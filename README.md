@@ -83,14 +83,17 @@ Os experimentos foram conduzidos medindo o tempo total de execução ("Wall Time
 
 ---
 
-### 7. Gráfico de Tempo de Execução
-[Gráfico Tempo Execução](graficos/tempo_execucao (1).png)
+7. Gráfico de Tempo de Execução
 
-### 8. Gráfico de Speedup
-[Gráfico Speedup](graficos/speedup (1).png)
+![Gráfico Tempo Execução](graficos/tempo_execucao (1).png)
 
-### 9. Gráfico de Eficiência
-[Gráfico Eficiência](graficos/eficiencia (1).png)
+8. Gráfico de Speedup
+
+![Gráfico Speedup](graficos/speedup (1).png)
+
+9. Gráfico de Eficiência
+
+![Gráfico Eficiência](graficos/eficiencia (1).png)
 
 ---
 
