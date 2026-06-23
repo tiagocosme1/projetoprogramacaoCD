@@ -163,7 +163,7 @@ if __name__ == "__main__":
             "eficiencia": eficiencia
         })
 
-    # Salva tabela de tempos
+    
     with open(TEMPOS_CSV, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=["processos", "tempo", "speedup", "eficiencia"])
         writer.writeheader()
